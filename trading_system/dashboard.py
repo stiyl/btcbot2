@@ -309,30 +309,6 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
         st.error(f"Could not load data source: {exc}")
         return
 
-<<<<<<< HEAD
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### Risk")
-    starting_cash = st.sidebar.number_input("Starting cash", min_value=1000.0, value=10000.0, step=1000.0)
-    risk_per_trade = st.sidebar.slider("Risk per trade", min_value=0.001, max_value=0.03, value=0.01, step=0.001)
-    fee_rate = st.sidebar.number_input("Fee rate", min_value=0.0, value=0.0006, step=0.0001, format="%.4f")
-    slippage_rate = st.sidebar.number_input("Slippage rate", min_value=0.0, value=0.0008, step=0.0001, format="%.4f")
-    allow_shorts = st.sidebar.checkbox("Allow shorts", value=True)
-
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### Paper trader")
-    paper_enabled = st.sidebar.checkbox("Enable live paper trader", value=True)
-    persist_state = st.sidebar.checkbox("Persist dashboard paper state", value=cfg.persist_paper_state)
-
-    store = PaperStateStore(cfg.state_path, cfg.history_path, cfg.trades_path)
-    if st.sidebar.button("Reset paper account", use_container_width=True):
-        store.reset()
-        st.session_state.pop("paper_account", None)
-        st.session_state.pop("paper_history", None)
-        st.session_state.pop("paper_trades", None)
-        st.success("Paper account state reset.")
-
-=======
->>>>>>> 25cc864 (Persist Streamlit UI settings across refresh)
     bt_cfg = BacktestConfig(
         starting_cash=starting_cash,
         risk_per_trade=risk_per_trade,
@@ -488,13 +464,8 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
                     store.reset()
 
             manual_cols = st.columns([1, 1, 3])
-<<<<<<< HEAD
-            auto_execute = manual_cols[0].checkbox("Auto execute latest signal", value=True)
-            mark_only = manual_cols[1].checkbox("Mark open trades with live price", value=True)
-=======
             manual_cols[0].markdown(f"<div class='subtle'>Auto execute: <strong>{'On' if auto_execute else 'Off'}</strong></div>", unsafe_allow_html=True)
             manual_cols[1].markdown(f"<div class='subtle'>Live marking: <strong>{'On' if mark_only else 'Off'}</strong></div>", unsafe_allow_html=True)
->>>>>>> 25cc864 (Persist Streamlit UI settings across refresh)
             manual_step = manual_cols[2].button("Run one paper update now", use_container_width=True)
 
             if live_price is not None and mark_only:
