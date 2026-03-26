@@ -4,7 +4,6 @@ import argparse
 import json
 import logging
 import time
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +27,7 @@ from .paper import (
     process_paper_signal,
 )
 from .strategy import build_latest_signal_snapshot, compute_strategy_frame
+from .storage import PaperStateStore
 
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
 
@@ -109,8 +109,9 @@ class LivePaperTrader:
             self.logger.info("Creating new paper account with $%.2f", self.cfg.starting_cash)
             return create_paper_account(self.cfg.starting_cash)
         try:
-            payload = json.loads(self.state_path.read_text(encoding="utf-8"))
-            account = paper_account_from_dict(payload)
+            account = PaperStateStore(state_path=self.state_path).load_account()
+            if account is None:
+                raise ValueError("state file was empty")
             self.logger.info("Loaded paper account from %s", self.state_path)
             return account
         except Exception as exc:
@@ -118,11 +119,10 @@ class LivePaperTrader:
             return create_paper_account(self.cfg.starting_cash)
 
     def persist_state(self) -> None:
-        self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        self.state_path.write_text(json.dumps(paper_account_to_dict(self.account), indent=2), encoding="utf-8")
+        store = PaperStateStore(state_path=self.state_path, trades_path=self.trades_csv)
+        store.save_account(self.account)
         if self.account.trades:
-            self.trades_csv.parent.mkdir(parents=True, exist_ok=True)
-            pd.DataFrame(self.account.trades).to_csv(self.trades_csv, index=False)
+            store.sync_trades(self.account)
         self.df.tail(1000).to_csv(self.candles_csv, index=False)
 
     def _bucket_start(self, ts: pd.Timestamp) -> pd.Timestamp:
@@ -296,34 +296,6 @@ def _safe_float(value: Any) -> float | None:
     except Exception:
         return None
 
-
-def paper_account_to_dict(account: PaperAccount) -> dict[str, Any]:
-    payload = {
-        "starting_cash": account.starting_cash,
-        "cash": account.cash,
-        "realized_pnl": account.realized_pnl,
-        "trades": account.trades,
-        "last_signal_bar": account.last_signal_bar,
-        "last_update_time": account.last_update_time,
-        "position": None,
-    }
-    if account.position is not None:
-        payload["position"] = asdict(account.position)
-    return payload
-
-
-def paper_account_from_dict(payload: dict[str, Any]) -> PaperAccount:
-    position_payload = payload.get("position")
-    position = PaperPosition(**position_payload) if isinstance(position_payload, dict) else None
-    return PaperAccount(
-        starting_cash=float(payload.get("starting_cash", 10000.0)),
-        cash=float(payload.get("cash", payload.get("starting_cash", 10000.0))),
-        realized_pnl=float(payload.get("realized_pnl", 0.0)),
-        trades=list(payload.get("trades", [])),
-        position=position,
-        last_signal_bar=payload.get("last_signal_bar"),
-        last_update_time=payload.get("last_update_time"),
-    )
 
 
 def parse_args() -> argparse.Namespace:

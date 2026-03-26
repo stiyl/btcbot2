@@ -48,3 +48,7 @@ class DashboardConfig:
     default_days: int = 180
     default_granularity: int = 3600
     refresh_seconds: int = 30
+    persist_paper_state: bool = True
+    state_path: Path = Path('data_cache/dashboard_paper_state.json')
+    history_path: Path = Path('data_cache/dashboard_equity.csv')
+    trades_path: Path = Path('data_cache/dashboard_trades.csv')

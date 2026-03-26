@@ -15,7 +15,8 @@ from .downloader import (
     download_coinbase_history,
     fetch_coinbase_live_snapshot,
 )
-from .paper import create_paper_account, paper_account_snapshot, process_paper_signal
+from .paper import create_paper_account, paper_account_snapshot, process_live_price, process_paper_signal
+from .storage import PaperStateStore
 from .strategy import build_latest_signal_snapshot
 
 
@@ -31,7 +32,7 @@ def _cached_live_snapshot(product_id: str) -> dict[str, object]:
     return fetch_coinbase_live_snapshot(product_id=product_id)
 
 
-def _enable_autorefresh(seconds: int):
+def _enable_autorefresh(seconds: int) -> None:
     if seconds <= 0:
         return
     html(
@@ -55,14 +56,8 @@ def _inject_styles() -> None:
                 radial-gradient(circle at top right, rgba(16, 185, 129, 0.10), transparent 24%),
                 linear-gradient(180deg, #0b1220 0%, #111827 100%);
         }
-        .block-container {
-            padding-top: 1.4rem;
-            padding-bottom: 2rem;
-            max-width: 1350px;
-        }
-        h1, h2, h3, h4, p, label, div {
-            color: #e5eefc;
-        }
+        .block-container { padding-top: 1.2rem; max-width: 1360px; }
+        h1,h2,h3,h4,p,label,div { color: #e5eefc; }
         [data-testid="stSidebar"] {
             background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
             border-right: 1px solid rgba(148, 163, 184, 0.12);
@@ -74,97 +69,30 @@ def _inject_styles() -> None:
             padding: 14px 16px;
             box-shadow: 0 12px 30px rgba(2, 6, 23, 0.20);
         }
-        div[data-testid="stMetric"] label {
-            color: #9fb3d9 !important;
-            font-size: 0.88rem !important;
-        }
-        div[data-testid="stMetricValue"] {
-            color: #f8fafc;
-        }
-        .hero-card {
-            padding: 1.25rem 1.4rem;
+        .hero-card, .card {
+            padding: 1rem 1.2rem;
             border-radius: 22px;
             background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
             border: 1px solid rgba(148, 163, 184, 0.14);
             box-shadow: 0 18px 45px rgba(2, 6, 23, 0.25);
             margin-bottom: 1rem;
         }
-        .hero-kicker {
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            color: #93c5fd;
-            font-size: 0.74rem;
-            margin-bottom: 0.4rem;
-            font-weight: 700;
-        }
-        .hero-title {
-            font-size: 2.1rem;
-            font-weight: 800;
-            margin-bottom: 0.45rem;
-            line-height: 1.1;
-            color: #f8fafc;
-        }
-        .hero-subtitle {
-            color: #bfd0ef;
-            font-size: 0.98rem;
-            margin-bottom: 0.75rem;
-        }
-        .chip-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 0.25rem;
-        }
+        .hero-kicker { text-transform: uppercase; letter-spacing: 0.12em; color: #93c5fd; font-size: 0.74rem; font-weight: 700; }
+        .hero-title { font-size: 2rem; font-weight: 800; margin: 0.4rem 0; color: #f8fafc; }
+        .hero-subtitle, .subtle { color: #bfd0ef; font-size: 0.95rem; }
+        .chip-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.55rem; }
         .chip {
-            padding: 0.35rem 0.65rem;
-            border-radius: 999px;
-            background: rgba(59, 130, 246, 0.14);
-            border: 1px solid rgba(96, 165, 250, 0.25);
-            color: #dbeafe;
-            font-size: 0.82rem;
-            font-weight: 600;
-        }
-        .section-card {
-            background: rgba(15, 23, 42, 0.72);
-            border: 1px solid rgba(148, 163, 184, 0.12);
-            border-radius: 22px;
-            padding: 1rem 1rem 0.75rem 1rem;
-            box-shadow: 0 15px 35px rgba(2, 6, 23, 0.18);
-            margin-bottom: 1rem;
-        }
-        .section-title {
-            font-size: 1.12rem;
-            font-weight: 700;
-            color: #f8fafc;
-            margin-bottom: 0.15rem;
-        }
-        .section-caption {
-            color: #9fb3d9;
-            margin-bottom: 0.9rem;
-            font-size: 0.92rem;
+            padding: 0.35rem 0.65rem; border-radius: 999px; background: rgba(59, 130, 246, 0.14);
+            border: 1px solid rgba(96, 165, 250, 0.25); color: #dbeafe; font-size: 0.82rem; font-weight: 600;
         }
         .status-buy, .status-sell, .status-watch, .status-hold {
-            display: inline-block;
-            padding: 0.34rem 0.7rem;
-            border-radius: 999px;
-            font-weight: 700;
-            font-size: 0.82rem;
-            margin-right: 0.55rem;
+            display: inline-block; padding: 0.34rem 0.7rem; border-radius: 999px; font-weight: 700; font-size: 0.82rem;
         }
         .status-buy { background: rgba(16, 185, 129, 0.18); color: #a7f3d0; border: 1px solid rgba(16, 185, 129, 0.28); }
         .status-sell { background: rgba(239, 68, 68, 0.18); color: #fecaca; border: 1px solid rgba(239, 68, 68, 0.28); }
         .status-watch { background: rgba(245, 158, 11, 0.18); color: #fde68a; border: 1px solid rgba(245, 158, 11, 0.28); }
         .status-hold { background: rgba(148, 163, 184, 0.18); color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.24); }
-        div[data-testid="stDataFrame"], div[data-testid="stPlotlyChart"], div[data-testid="stVegaLiteChart"] {
-            border-radius: 18px;
-            overflow: hidden;
-            border: 1px solid rgba(148, 163, 184, 0.12);
-        }
-        .mini-note {
-            color: #9fb3d9;
-            font-size: 0.85rem;
-            margin-top: 0.35rem;
-        }
+        div[data-testid="stDataFrame"] { border-radius: 18px; overflow: hidden; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -191,40 +119,48 @@ def _status_badge(level: str) -> str:
     return f'<span class="{css}">{level}</span>'
 
 
-def _section_header(title: str, caption: str) -> None:
+def _section(title: str, caption: str) -> None:
     st.markdown(
         f"""
-        <div class="section-card">
-            <div class="section-title">{title}</div>
-            <div class="section-caption">{caption}</div>
+        <div class="card">
+            <div style="font-size:1.08rem;font-weight:700;color:#f8fafc;">{title}</div>
+            <div class="subtle">{caption}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
 
-def _render_signal_alert(snapshot: dict[str, object]):
+def _render_signal_alert(snapshot: dict[str, object]) -> None:
     level = str(snapshot.get("alert_level", "HOLD")).upper()
     message = str(snapshot.get("message", ""))
     signal = str(snapshot.get("signal", "HOLD")).upper()
     score = snapshot.get("score")
-    regime = snapshot.get("regime")
+    regime = str(snapshot.get("regime", "range")).replace("_", " ").title()
     ts = snapshot.get("timestamp")
     ts_text = pd.to_datetime(ts).strftime("%Y-%m-%d %H:%M UTC") if ts is not None and not pd.isna(ts) else "—"
-
     st.markdown(
         f"""
         <div class="hero-card" style="margin-top:0.2rem;">
-            <div>{_status_badge(level)} <span style="color:#dbeafe;font-weight:700;">Latest model state</span></div>
-            <div style="font-size:1.15rem;font-weight:700;margin-top:0.75rem;color:#f8fafc;">{message}</div>
-            <div class="mini-note">Signal: <strong>{signal}</strong> · Score: <strong>{_metric_value(score, digits=2)}</strong> · Regime: <strong>{str(regime).replace('_', ' ').title()}</strong> · Signal bar: <strong>{ts_text}</strong></div>
+            <div>{_status_badge(level)} <span style="color:#dbeafe;font-weight:700;">Latest strategy state</span></div>
+            <div style="font-size:1.08rem;font-weight:700;margin-top:0.8rem;color:#f8fafc;">{message}</div>
+            <div class="subtle">Signal: <strong>{signal}</strong> · Score: <strong>{_metric_value(score, digits=2)}</strong> · Regime: <strong>{regime}</strong> · Signal bar: <strong>{ts_text}</strong></div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
 
-def render_dashboard(default_csv: str | Path | None = None, config: DashboardConfig | None = None):
+def _performance_delta(history: pd.DataFrame) -> float | None:
+    if history is None or len(history) < 2 or "equity" not in history.columns:
+        return None
+    try:
+        return float(history["equity"].iloc[-1]) - float(history["equity"].iloc[-2])
+    except Exception:
+        return None
+
+
+def render_dashboard(default_csv: str | Path | None = None, config: DashboardConfig | None = None) -> None:
     cfg = config or DashboardConfig()
     st.set_page_config(page_title=cfg.title, layout="wide")
     _inject_styles()
@@ -246,13 +182,11 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
     uploaded = st.sidebar.file_uploader("Upload OHLCV CSV", type=["csv"], help="Optional override. Leave empty to auto-download Coinbase history.")
     source = uploaded if uploaded is not None else (str(default_csv) if default_csv else None)
 
-    use_cached = True
     if uploaded is None:
         use_cached = st.sidebar.checkbox("Use latest cached Coinbase history", value=True)
         if st.sidebar.button("Refresh Coinbase history now", use_container_width=True):
             _cached_download.clear()
             st.session_state.pop("downloaded_csv", None)
-
         if source is None and "downloaded_csv" not in st.session_state:
             with st.spinner(f"Downloading {product_id} history from Coinbase..."):
                 st.session_state["downloaded_csv"] = _cached_download(product_id, int(granularity), int(days))
@@ -271,7 +205,7 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
         return
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("### Backtest + risk")
+    st.sidebar.markdown("### Risk")
     starting_cash = st.sidebar.number_input("Starting cash", min_value=1000.0, value=10000.0, step=1000.0)
     risk_per_trade = st.sidebar.slider("Risk per trade", min_value=0.001, max_value=0.03, value=0.01, step=0.001)
     fee_rate = st.sidebar.number_input("Fee rate", min_value=0.0, value=0.0006, step=0.0001, format="%.4f")
@@ -279,11 +213,17 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
     allow_shorts = st.sidebar.checkbox("Allow shorts", value=True)
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("### Live paper trader")
+    st.sidebar.markdown("### Paper trader")
     paper_enabled = st.sidebar.checkbox("Enable live paper trader", value=True)
+    persist_state = st.sidebar.checkbox("Persist dashboard paper state", value=cfg.persist_paper_state)
+
+    store = PaperStateStore(cfg.state_path, cfg.history_path, cfg.trades_path)
     if st.sidebar.button("Reset paper account", use_container_width=True):
+        store.reset()
         st.session_state.pop("paper_account", None)
         st.session_state.pop("paper_history", None)
+        st.session_state.pop("paper_trades", None)
+        st.success("Paper account state reset.")
 
     bt_cfg = BacktestConfig(
         starting_cash=starting_cash,
@@ -301,14 +241,15 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
         f"""
         <div class="hero-card">
             <div class="hero-kicker">Crypto Trading Dashboard</div>
-            <div class="hero-title">Better visibility for live monitoring, paper trading, and backtest review.</div>
-            <div class="hero-subtitle">Track <strong>{product_id}</strong> with Coinbase market data, cleaner analytics, and a more useful layout for decisions.</div>
+            <div class="hero-title">Full refactor for UI, live paper trading, and deploy-ready monitoring.</div>
+            <div class="hero-subtitle">Track <strong>{product_id}</strong> with Coinbase data, persistent paper trading state, and a cleaner layout built for Streamlit deployment.</div>
             <div class="chip-row">
                 <span class="chip">{product_id}</span>
                 <span class="chip">{granularity}s candles</span>
                 <span class="chip">{days} days loaded</span>
                 <span class="chip">Last candle: {last_ts_text}</span>
                 <span class="chip">Auto-refresh: {'Off' if refresh_seconds == 0 else f'{refresh_seconds}s'}</span>
+                <span class="chip">Persistence: {'On' if persist_state else 'Session only'}</span>
             </div>
         </div>
         """,
@@ -341,27 +282,27 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
     with market_tab:
         left, right = st.columns([1.15, 1], gap="large")
         with left:
-            _section_header("Live market snapshot", "Current public Coinbase state for the selected product.")
+            _section("Live market snapshot", "Current public Coinbase state for the selected product.")
             if live_error is not None:
                 st.warning(f"Live Coinbase snapshot unavailable right now: {live_error}")
             else:
-                live_cols = st.columns(4)
-                live_cols[0].metric("Live price", _metric_value(live.get("price"), prefix="$"))
-                live_cols[1].metric("24h change", _metric_value(live.get("pct_change_24h"), suffix="%", digits=2))
-                live_cols[2].metric("Spread", _metric_value(live.get("spread"), prefix="$", digits=2))
-                live_cols[3].metric("24h volume", _metric_value(live.get("volume_24h"), digits=2))
-                more_live = st.columns(4)
-                more_live[0].metric("Bid", _metric_value(live.get("bid"), prefix="$"))
-                more_live[1].metric("Ask", _metric_value(live.get("ask"), prefix="$"))
-                more_live[2].metric("24h high", _metric_value(live.get("high_24h"), prefix="$"))
-                more_live[3].metric("24h low", _metric_value(live.get("low_24h"), prefix="$"))
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Live price", _metric_value(live.get("price"), prefix="$"))
+                c2.metric("24h change", _metric_value(live.get("pct_change_24h"), suffix="%"))
+                c3.metric("Spread", _metric_value(live.get("spread"), prefix="$"))
+                c4.metric("24h volume", _metric_value(live.get("volume_24h")))
+                c5, c6, c7, c8 = st.columns(4)
+                c5.metric("Bid", _metric_value(live.get("bid"), prefix="$"))
+                c6.metric("Ask", _metric_value(live.get("ask"), prefix="$"))
+                c7.metric("24h high", _metric_value(live.get("high_24h"), prefix="$"))
+                c8.metric("24h low", _metric_value(live.get("low_24h"), prefix="$"))
 
             price_chart = result.enriched_frame[["timestamp", "close", "ema_fast", "ema_slow", "ema_trend"]].copy()
             st.line_chart(price_chart.set_index("timestamp"), height=370)
-            st.caption("Price, fast EMA, slow EMA, and trend EMA in one view.")
+            st.caption("Close price with fast, slow, and trend EMAs.")
 
         with right:
-            _section_header("Data source health", "A quick summary of what the dashboard is analyzing right now.")
+            _section("Run status", "A quick summary of what the app is analyzing right now.")
             d1, d2 = st.columns(2)
             d1.metric("Rows loaded", f"{len(df):,}")
             d2.metric("Backtest trades", f"{int(result.summary['trade_count']):,}")
@@ -373,39 +314,36 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
             d6.metric("Starting cash", _metric_value(starting_cash, prefix="$", digits=0))
             st.markdown(
                 f"""
-                <div class="section-card">
-                    <div class="section-title">Current source</div>
-                    <div class="section-caption">{source}</div>
-                    <div class="mini-note">The dashboard can auto-refresh, auto-download history, and update the live paper account using the newest model bar.</div>
+                <div class="card">
+                    <div style="font-size:1rem;font-weight:700;">Deploy note</div>
+                    <div class="subtle">This app is ready for <code>streamlit run app.py</code> locally or Streamlit Community Cloud with <code>app.py</code> as the entry point.</div>
+                    <div class="subtle" style="margin-top:0.6rem;">Current source: <strong>{source}</strong></div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
     with strategy_tab:
-        s_left, s_right = st.columns([1.3, 1], gap="large")
+        s_left, s_right = st.columns([1.25, 1], gap="large")
         with s_left:
-            _section_header("Backtest equity curve", "Historical paper performance of the current strategy configuration.")
+            _section("Backtest equity curve", "Historical paper performance under the current configuration.")
             equity_chart = result.equity_curve[["timestamp", "equity", "cash"]].copy()
             st.line_chart(equity_chart.set_index("timestamp"), height=350)
-            perf_cols = st.columns(4)
-            perf_cols[0].metric("Sharpe-like", _metric_value(result.summary.get("sharpe_like"), digits=2))
-            perf_cols[1].metric("Profit factor", _metric_value(result.summary.get("profit_factor"), digits=2))
-            perf_cols[2].metric("Trade count", f"{int(result.summary['trade_count']):,}")
-            perf_cols[3].metric("Latest alert", str(signal_snapshot.get("alert_level", "HOLD")))
-
-            _section_header("Momentum and participation", "Watch volume pressure and RSI without digging through raw rows.")
+            p1, p2, p3, p4 = st.columns(4)
+            p1.metric("Sharpe-like", _metric_value(result.summary.get("sharpe_like"), digits=2))
+            p2.metric("Profit factor", _metric_value(result.summary.get("profit_factor"), digits=2))
+            p3.metric("Trade count", f"{int(result.summary['trade_count']):,}")
+            p4.metric("Latest alert", str(signal_snapshot.get("alert_level", "HOLD")))
             focus_cols = ["timestamp", "rsi", "volume_z", "atr_pct", "score", "long_score", "short_score"]
             st.line_chart(result.enriched_frame[focus_cols].set_index("timestamp"), height=320)
-
         with s_right:
-            _section_header("Latest model readout", "Current strategy state for the latest closed candle.")
+            _section("Latest model readout", "Current strategy state for the latest closed candle.")
             latest = result.enriched_frame.iloc[-1]
             cols = st.columns(2)
             cols[0].metric("Close", _metric_value(latest.get("close"), prefix="$"))
             cols[1].metric("RSI", _metric_value(latest.get("rsi"), digits=2))
             cols = st.columns(2)
-            cols[0].metric("ATR %", _metric_value((latest.get("atr_pct") or 0) * 100, suffix="%", digits=2))
+            cols[0].metric("ATR %", _metric_value((latest.get("atr_pct") or 0) * 100, suffix="%"))
             cols[1].metric("Volume z-score", _metric_value(latest.get("volume_z"), digits=2))
             cols = st.columns(2)
             cols[0].metric("Long score", _metric_value(latest.get("long_score"), digits=2))
@@ -418,60 +356,101 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
             cols[1].metric("Regime", str(latest.get("regime", "range")).replace("_", " ").title())
 
     with paper_tab:
-        _section_header("Session-based live paper trader", "A virtual account that reacts to the latest closed signal bar and marks to the newest live price.")
+        _section("Persistent live paper trader", "Simulates the newest signal against the latest live price and can survive app reruns when persistence is enabled.")
         if not paper_enabled:
             st.info("Enable the live paper trader from the sidebar to start simulating trades.")
         elif live_error is not None:
             st.warning("Live price is currently unavailable, so the paper trader cannot update right now.")
         else:
-            if "paper_account" not in st.session_state or st.session_state["paper_account"].starting_cash != float(starting_cash):
-                st.session_state["paper_account"] = create_paper_account(float(starting_cash))
-
-            live_price_for_paper = None
+            live_price = None
             try:
-                live_price_for_paper = float(live.get("price")) if live.get("price") is not None else None
+                live_price = float(live.get("price")) if live.get("price") is not None else None
             except Exception:
-                live_price_for_paper = None
+                live_price = None
 
-            if live_price_for_paper and not result.enriched_frame.empty:
-                paper_account = st.session_state["paper_account"]
-                process_paper_signal(paper_account, result.enriched_frame.iloc[-1], live_price_for_paper, bt_cfg)
-                paper_state = paper_account_snapshot(paper_account, live_price_for_paper)
+            if "paper_account" not in st.session_state:
+                persisted = store.load_account() if persist_state else None
+                st.session_state["paper_account"] = persisted or create_paper_account(float(starting_cash))
 
-                p1, p2, p3, p4, p5 = st.columns(5)
-                p1.metric("Paper equity", _metric_value(paper_state.get("equity"), prefix="$"))
-                p2.metric("Paper cash", _metric_value(paper_state.get("cash"), prefix="$"))
-                p3.metric("Realized PnL", _metric_value(paper_state.get("realized_pnl"), prefix="$"))
-                p4.metric("Unrealized PnL", _metric_value(paper_state.get("unrealized_pnl"), prefix="$"))
-                p5.metric("Position", str(paper_state.get("position_side", "FLAT")))
+            account = st.session_state["paper_account"]
+            if abs(account.starting_cash - float(starting_cash)) > 1e-9:
+                account = create_paper_account(float(starting_cash))
+                st.session_state["paper_account"] = account
+                if persist_state:
+                    store.reset()
 
-                q1, q2, q3, q4 = st.columns(4)
-                q1.metric("Qty", _metric_value(paper_state.get("position_qty"), digits=6))
-                q2.metric("Entry", _metric_value(paper_state.get("entry_price"), prefix="$"))
-                q3.metric("Live mark", _metric_value(live_price_for_paper, prefix="$"))
-                q4.metric("Trades", str(paper_state.get("trade_count", 0)))
+            manual_cols = st.columns([1, 1, 3])
+            auto_execute = manual_cols[0].checkbox("Auto execute latest signal", value=True)
+            mark_only = manual_cols[1].checkbox("Mark open trades with live price", value=True)
+            manual_step = manual_cols[2].button("Run one paper update now", use_container_width=True)
 
-                if paper_account.position is not None:
-                    r1, r2, r3 = st.columns(3)
-                    r1.metric("Stop", _metric_value(paper_state.get("stop_price"), prefix="$"))
-                    r2.metric("Take profit", _metric_value(paper_state.get("take_profit"), prefix="$"))
-                    r3.metric("Trail stop", _metric_value(paper_state.get("trail_stop"), prefix="$"))
+            if live_price is not None and mark_only:
+                process_live_price(account, live_price, pd.Timestamp.utcnow().isoformat(), bt_cfg)
+            if live_price is not None and (auto_execute or manual_step) and not result.enriched_frame.empty:
+                process_paper_signal(account, result.enriched_frame.iloc[-1], live_price, bt_cfg)
 
-                paper_trades = pd.DataFrame(paper_account.trades)
-                if not paper_trades.empty:
-                    st.dataframe(paper_trades.tail(100), use_container_width=True, height=360)
-                else:
-                    st.info("No live paper trades yet. A simulated trade will open when a new closed candle prints a BUY or SELL signal.")
+            if persist_state:
+                store.save_account(account)
+                history = store.append_history(account, live_price)
+                trades = store.sync_trades(account)
+            else:
+                history = st.session_state.get("paper_history", pd.DataFrame())
+                snap_before = paper_account_snapshot(account, live_price)
+                row = {
+                    "timestamp": pd.Timestamp.utcnow(),
+                    "equity": snap_before["equity"],
+                    "cash": snap_before["cash"],
+                    "realized_pnl": snap_before["realized_pnl"],
+                    "unrealized_pnl": snap_before["unrealized_pnl"],
+                    "position_side": snap_before["position_side"],
+                    "mark_price": live_price,
+                }
+                history = pd.concat([history, pd.DataFrame([row])], ignore_index=True)
+                if "timestamp" in history.columns:
+                    history["timestamp"] = pd.to_datetime(history["timestamp"], utc=True, errors="coerce")
+                    history = history.drop_duplicates(subset=["timestamp"], keep="last").sort_values("timestamp")
+                trades = pd.DataFrame(account.trades)
+                st.session_state["paper_history"] = history
+                st.session_state["paper_trades"] = trades
 
-                st.caption("This mode is still paper only. It never sends exchange orders.")
+            snap = paper_account_snapshot(account, live_price)
+            delta = _performance_delta(history)
+            p1, p2, p3, p4, p5 = st.columns(5)
+            p1.metric("Paper equity", _metric_value(snap.get("equity"), prefix="$"), delta=_metric_value(delta, prefix="$") if delta is not None else None)
+            p2.metric("Paper cash", _metric_value(snap.get("cash"), prefix="$"))
+            p3.metric("Realized PnL", _metric_value(snap.get("realized_pnl"), prefix="$"))
+            p4.metric("Unrealized PnL", _metric_value(snap.get("unrealized_pnl"), prefix="$"))
+            p5.metric("Position", str(snap.get("position_side", "FLAT")))
+
+            q1, q2, q3, q4 = st.columns(4)
+            q1.metric("Qty", _metric_value(snap.get("position_qty"), digits=6))
+            q2.metric("Entry", _metric_value(snap.get("entry_price"), prefix="$"))
+            q3.metric("Live mark", _metric_value(live_price, prefix="$"))
+            q4.metric("Trades", str(snap.get("trade_count", 0)))
+
+            if account.position is not None:
+                r1, r2, r3 = st.columns(3)
+                r1.metric("Stop", _metric_value(snap.get("stop_price"), prefix="$"))
+                r2.metric("Take profit", _metric_value(snap.get("take_profit"), prefix="$"))
+                r3.metric("Trail stop", _metric_value(snap.get("trail_stop"), prefix="$"))
+
+            if not history.empty and "timestamp" in history.columns:
+                hist_chart = history[["timestamp", "equity", "cash", "realized_pnl", "unrealized_pnl"]].copy()
+                st.line_chart(hist_chart.set_index("timestamp"), height=280)
+                st.caption("Persistent live paper account curve. This survives reruns when persistence is enabled.")
+
+            if not trades.empty:
+                st.dataframe(trades.tail(200), use_container_width=True, height=330)
+            else:
+                st.info("No paper trades yet. The trader will open a position when a new BUY or SELL signal appears.")
 
     with research_tab:
-        left, right = st.columns([1, 1], gap="large")
+        left, right = st.columns(2, gap="large")
         with left:
-            _section_header("Backtest trades", "Recent simulated trades from the historical backtest.")
+            _section("Backtest trades", "Recent simulated trades from the historical backtest.")
             st.dataframe(result.trades.tail(200), use_container_width=True, height=420)
         with right:
-            _section_header("Recent model rows", "Useful for debugging thresholds, entries, and exits.")
+            _section("Recent model rows", "Useful for debugging thresholds, entries, and exits.")
             preview_cols = [
                 "timestamp", "close", "signal", "alert_level", "score", "long_score", "short_score",
                 "rsi", "atr_pct", "volume_z", "regime",
@@ -479,6 +458,5 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
             st.dataframe(result.enriched_frame[preview_cols].tail(200), use_container_width=True, height=420)
 
     with raw_tab:
-        _section_header("Loaded OHLCV data", "Raw candles feeding the backtest and live strategy logic.")
+        _section("Loaded OHLCV data", "Raw candles feeding the backtest and live strategy logic.")
         st.dataframe(df.tail(300), use_container_width=True, height=430)
-

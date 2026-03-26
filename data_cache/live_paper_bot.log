@@ -1,0 +1,26 @@
+2026-03-25 23:44:44,749 | INFO | Loaded 720 candles from data_cache\BTC_USD_3600s_30d.csv
+2026-03-25 23:44:44,764 | INFO | Creating new paper account with $10000.00
+2026-03-25 23:44:44,764 | INFO | Starting live paper bot | product=BTC-USD granularity=3600s days=30 allow_shorts=True
+2026-03-25 23:44:45,192 | INFO | WebSocket opened
+2026-03-25 23:44:45,278 | INFO | Heartbeat | price=70839.51 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-25 23:45:15,827 | INFO | Heartbeat | price=70806.77 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-25 23:55:26,226 | INFO | Loaded 720 candles from data_cache\BTC_USD_3600s_30d.csv
+2026-03-25 23:55:26,241 | INFO | Creating new paper account with $10000.00
+2026-03-25 23:55:26,241 | INFO | Starting live paper bot | product=BTC-USD granularity=3600s days=30 allow_shorts=True
+2026-03-25 23:55:26,665 | INFO | WebSocket opened
+2026-03-25 23:55:26,754 | INFO | Heartbeat | price=70742.47 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-25 23:55:57,361 | INFO | Heartbeat | price=70733.91 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-25 23:56:27,647 | INFO | Heartbeat | price=70753.69 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-25 23:56:57,985 | INFO | Heartbeat | price=70742.47 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-25 23:57:28,037 | INFO | Heartbeat | price=70773.38 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-25 23:57:58,439 | INFO | Heartbeat | price=70771.55 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-25 23:58:28,456 | INFO | Heartbeat | price=70751.67 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-25 23:58:58,489 | INFO | Heartbeat | price=70747.31 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-25 23:59:28,592 | INFO | Heartbeat | price=70748.80 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-25 23:59:58,683 | INFO | Closed candle 2026-03-26T04:00:00+00:00 | close=70733.20 | signal=HOLD | score=2.60 | alert=HOLD
+2026-03-25 23:59:58,690 | INFO | Heartbeat | price=70733.20 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-26 00:00:29,067 | INFO | Heartbeat | price=70734.71 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-26 00:00:59,707 | INFO | Heartbeat | price=70749.50 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-26 00:01:30,589 | INFO | Heartbeat | price=70739.37 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-26 00:02:01,648 | INFO | Heartbeat | price=70742.92 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
+2026-03-26 00:02:32,110 | INFO | Heartbeat | price=70754.12 equity=10000.00 cash=10000.00 unrealized=0.00 position=FLAT trades=0
