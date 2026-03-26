@@ -160,8 +160,6 @@ def _performance_delta(history: pd.DataFrame) -> float | None:
         return None
 
 
-<<<<<<< HEAD
-=======
 
 
 def _load_ui_defaults(cfg: DashboardConfig) -> dict[str, object]:
@@ -212,7 +210,6 @@ def _current_ui_settings() -> dict[str, object]:
     return {key: st.session_state.get(key) for key in keys}
 
 
->>>>>>> 25cc864 (Persist Streamlit UI settings across refresh)
 def render_dashboard(default_csv: str | Path | None = None, config: DashboardConfig | None = None) -> None:
     cfg = config or DashboardConfig()
     st.set_page_config(page_title=cfg.title, layout="wide")
