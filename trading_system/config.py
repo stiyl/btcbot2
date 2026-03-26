@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
+from .alerts import AlertConfig
+
 
 @dataclass(slots=True)
 class StrategyConfig:
@@ -53,3 +55,5 @@ class DashboardConfig:
     history_path: Path = Path('data_cache/dashboard_equity.csv')
     trades_path: Path = Path('data_cache/dashboard_trades.csv')
     ui_settings_path: Path = Path('data_cache/dashboard_ui_settings.json')
+    alerts_log_path: Path = Path('data_cache/alerts_log.jsonl')
+    alerting: AlertConfig = field(default_factory=AlertConfig)

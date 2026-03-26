@@ -87,3 +87,29 @@ The app includes `.streamlit/config.toml` for theme defaults.
 - strategy parameter controls in the UI
 - richer analytics like exposure, expectancy, and rolling drawdown
 - optional exchange abstraction for future broker integrations
+
+
+## Autonomous paper trading, stops, and alerts
+
+This build adds:
+- automatic paper-trade execution on each dashboard refresh when **Auto execute latest signal** is enabled
+- ATR-based stop loss, take profit, trailing stop, and max holding bars controls in the Streamlit sidebar
+- optional Discord and Telegram alerts for signal, entry, and exit events
+- alert logging to `data_cache/alerts_log.jsonl`
+
+Run the always-on bot locally:
+
+```bash
+python run_live_paper_bot.py --product BTC-USD --granularity 3600 --days 30 --alerts-enabled
+```
+
+Optional alert flags:
+
+```bash
+python run_live_paper_bot.py \
+  --product BTC-USD \
+  --alerts-enabled \
+  --discord-webhook-url "YOUR_WEBHOOK" \
+  --telegram-bot-token "YOUR_TOKEN" \
+  --telegram-chat-id "YOUR_CHAT_ID"
+```

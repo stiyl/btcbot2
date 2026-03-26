@@ -10,6 +10,7 @@ from typing import Any
 import pandas as pd
 import websocket
 
+from .alerts import AlertConfig, AlertManager, build_entry_alert, build_exit_alert, build_signal_alert
 from .config import BacktestConfig
 from .data import ensure_ohlcv_schema
 from .downloader import (
@@ -76,6 +77,8 @@ class LivePaperTrader:
         trades_csv: Path,
         candles_csv: Path | None = None,
         log_path: Path | None = None,
+        alert_config: AlertConfig | None = None,
+        alerts_log_path: Path | None = None,
     ):
         self.product_id = str(product_id).strip().upper()
         self.granularity = int(granularity)
@@ -85,6 +88,7 @@ class LivePaperTrader:
         self.trades_csv = Path(trades_csv)
         self.candles_csv = Path(candles_csv) if candles_csv else default_download_path(self.product_id, self.granularity, self.days)
         self.logger = setup_logger(log_path)
+        self.alert_manager = AlertManager(alert_config or AlertConfig(enabled=False), alerts_log_path or DEFAULT_CACHE_DIR / "alerts_log.jsonl")
         self.df = self._load_seed_data()
         self.frame = compute_strategy_frame(self.df, self.cfg.strategy)
         self.account = self._load_or_create_account()
@@ -163,9 +167,12 @@ class LivePaperTrader:
         close_price = float(signal_row["close"])
         pre_trade_count = len(self.account.trades)
         prev_position = self.account.position.side if self.account.position else "FLAT"
+        latest = build_latest_signal_snapshot(self.frame, self.cfg.strategy)
+        if str(latest.get("signal", "HOLD")).upper() in {"BUY", "SELL"}:
+            level, title, body, event_id = build_signal_alert(latest, self.product_id)
+            self.alert_manager.emit(level=level, event_type="signal", title=title, body=body, event_id=event_id, metadata={"product_id": self.product_id})
         process_paper_signal(self.account, signal_row, close_price, self.cfg)
         self.last_signal_bar = self.account.last_signal_bar
-        latest = build_latest_signal_snapshot(self.frame, self.cfg.strategy)
         self.logger.info(
             "Closed candle %s | close=%.2f | signal=%s | score=%.2f | alert=%s",
             pd.to_datetime(signal_row['timestamp']).isoformat(),
@@ -185,6 +192,8 @@ class LivePaperTrader:
                 float(trade["pnl"]),
                 trade["exit_reason"],
             )
+            level, title, body, event_id = build_exit_alert(trade, self.product_id)
+            self.alert_manager.emit(level=level, event_type="exit", title=title, body=body, event_id=event_id, metadata=trade)
         new_position = self.account.position.side if self.account.position else "FLAT"
         if prev_position != new_position and self.account.position is not None:
             pos = self.account.position
@@ -196,12 +205,20 @@ class LivePaperTrader:
                 pos.stop_price,
                 pos.take_profit,
             )
+            level, title, body, event_id = build_entry_alert(pos, self.product_id)
+            self.alert_manager.emit(level=level, event_type="entry", title=title, body=body, event_id=event_id, metadata={"product_id": self.product_id})
         self.persist_state()
         self.current_candle = None
 
     def on_trade(self, trade_time: pd.Timestamp, price: float, size: float) -> None:
         self.last_price = price
+        pre_trade_count = len(self.account.trades)
         process_live_price(self.account, price, trade_time.isoformat(), self.cfg)
+        if len(self.account.trades) > pre_trade_count:
+            trade = self.account.trades[-1]
+            level, title, body, event_id = build_exit_alert(trade, self.product_id)
+            self.alert_manager.emit(level=level, event_type="exit", title=title, body=body, event_id=event_id, metadata=trade)
+            self.persist_state()
         if self.current_candle is None:
             self.current_candle = self._start_candle(trade_time, price, size)
             return
@@ -308,10 +325,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fee-rate", type=float, default=0.0006)
     parser.add_argument("--slippage-rate", type=float, default=0.0008)
     parser.add_argument("--long-only", action="store_true")
+    parser.add_argument("--stop-atr-multiple", type=float, default=1.8)
+    parser.add_argument("--take-profit-atr-multiple", type=float, default=4.8)
+    parser.add_argument("--trailing-atr-multiple", type=float, default=2.2)
+    parser.add_argument("--disable-trailing-stop", action="store_true")
+    parser.add_argument("--max-holding-bars", type=int, default=180)
     parser.add_argument("--state-path", type=Path, default=DEFAULT_CACHE_DIR / "live_paper_state.json")
     parser.add_argument("--trades-csv", type=Path, default=DEFAULT_CACHE_DIR / "live_paper_trades.csv")
     parser.add_argument("--candles-csv", type=Path)
     parser.add_argument("--log-path", type=Path, default=DEFAULT_CACHE_DIR / "live_paper_bot.log")
+    parser.add_argument("--alerts-enabled", action="store_true")
+    parser.add_argument("--alert-min-level", choices=["WATCH", "BUY"], default="BUY")
+    parser.add_argument("--discord-webhook-url", default="")
+    parser.add_argument("--telegram-bot-token", default="")
+    parser.add_argument("--telegram-chat-id", default="")
+    parser.add_argument("--alerts-log-path", type=Path, default=DEFAULT_CACHE_DIR / "alerts_log.jsonl")
     return parser.parse_args()
 
 
@@ -324,6 +352,11 @@ def main() -> None:
         slippage_rate=args.slippage_rate,
         allow_shorts=not args.long_only,
     )
+    cfg.strategy.stop_atr_multiple = args.stop_atr_multiple
+    cfg.strategy.take_profit_atr_multiple = args.take_profit_atr_multiple
+    cfg.strategy.trailing_atr_multiple = args.trailing_atr_multiple
+    cfg.strategy.use_trailing_stop = not args.disable_trailing_stop
+    cfg.strategy.max_holding_bars = args.max_holding_bars
     trader = LivePaperTrader(
         product_id=args.product,
         granularity=args.granularity,
@@ -333,6 +366,14 @@ def main() -> None:
         trades_csv=args.trades_csv,
         candles_csv=args.candles_csv,
         log_path=args.log_path,
+        alert_config=AlertConfig(
+            enabled=args.alerts_enabled,
+            min_level=args.alert_min_level,
+            discord_webhook_url=args.discord_webhook_url,
+            telegram_bot_token=args.telegram_bot_token,
+            telegram_chat_id=args.telegram_chat_id,
+        ),
+        alerts_log_path=args.alerts_log_path,
     )
     trader.run()
 

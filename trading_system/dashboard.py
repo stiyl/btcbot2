@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 from streamlit.components.v1 import html
 
+from .alerts import AlertConfig, AlertManager, build_entry_alert, build_exit_alert, build_signal_alert
 from .backtest import run_backtest
 from .config import BacktestConfig, DashboardConfig
 from .data import load_ohlcv_csv
@@ -173,11 +174,21 @@ def _load_ui_defaults(cfg: DashboardConfig) -> dict[str, object]:
         "risk_per_trade": 0.01,
         "fee_rate": 0.0006,
         "slippage_rate": 0.0008,
+        "stop_atr_multiple": 1.8,
+        "take_profit_atr_multiple": 4.8,
+        "trailing_atr_multiple": 2.2,
+        "use_trailing_stop": True,
+        "max_holding_bars": 180,
         "allow_shorts": True,
         "paper_enabled": True,
         "persist_state": bool(cfg.persist_paper_state),
         "auto_execute": True,
         "mark_only": True,
+        "alerts_enabled": False,
+        "alert_min_level": "BUY",
+        "discord_webhook_url": "",
+        "telegram_bot_token": "",
+        "telegram_chat_id": "",
     }
 
 
@@ -201,11 +212,21 @@ def _current_ui_settings() -> dict[str, object]:
         "risk_per_trade",
         "fee_rate",
         "slippage_rate",
+        "stop_atr_multiple",
+        "take_profit_atr_multiple",
+        "trailing_atr_multiple",
+        "use_trailing_stop",
+        "max_holding_bars",
         "allow_shorts",
         "paper_enabled",
         "persist_state",
         "auto_execute",
         "mark_only",
+        "alerts_enabled",
+        "alert_min_level",
+        "discord_webhook_url",
+        "telegram_bot_token",
+        "telegram_chat_id",
     ]
     return {key: st.session_state.get(key) for key in keys}
 
@@ -235,6 +256,11 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
         st.slider("Risk per trade", min_value=0.001, max_value=0.03, step=0.001, key="risk_per_trade")
         st.number_input("Fee rate", min_value=0.0, step=0.0001, format="%.4f", key="fee_rate")
         st.number_input("Slippage rate", min_value=0.0, step=0.0001, format="%.4f", key="slippage_rate")
+        st.number_input("Stop loss ATR multiple", min_value=0.5, step=0.1, format="%.2f", key="stop_atr_multiple")
+        st.number_input("Take profit ATR multiple", min_value=0.5, step=0.1, format="%.2f", key="take_profit_atr_multiple")
+        st.number_input("Trailing stop ATR multiple", min_value=0.5, step=0.1, format="%.2f", key="trailing_atr_multiple")
+        st.number_input("Max holding bars", min_value=1, step=1, key="max_holding_bars")
+        st.checkbox("Use trailing stop", key="use_trailing_stop")
         st.checkbox("Allow shorts", key="allow_shorts")
 
         st.markdown("### Paper trader")
@@ -243,6 +269,13 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
         st.checkbox("Auto execute latest signal", key="auto_execute")
         st.checkbox("Mark open trades with live price", key="mark_only")
         st.checkbox("Use latest cached Coinbase history", key="use_cached")
+
+        st.markdown("### Alerts")
+        st.checkbox("Enable alerts", key="alerts_enabled")
+        st.selectbox("Minimum alert level", options=["WATCH", "BUY"], key="alert_min_level")
+        st.text_input("Discord webhook URL", key="discord_webhook_url", help="Optional. Leave blank to disable Discord alerts.")
+        st.text_input("Telegram bot token", key="telegram_bot_token", type="password", help="Optional. Leave blank to disable Telegram alerts.")
+        st.text_input("Telegram chat ID", key="telegram_chat_id")
 
         apply_settings = st.form_submit_button("Apply & save settings", use_container_width=True)
 
@@ -258,12 +291,33 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
     risk_per_trade = float(st.session_state.get("risk_per_trade", 0.01))
     fee_rate = float(st.session_state.get("fee_rate", 0.0006))
     slippage_rate = float(st.session_state.get("slippage_rate", 0.0008))
+    stop_atr_multiple = float(st.session_state.get("stop_atr_multiple", 1.8))
+    take_profit_atr_multiple = float(st.session_state.get("take_profit_atr_multiple", 4.8))
+    trailing_atr_multiple = float(st.session_state.get("trailing_atr_multiple", 2.2))
+    use_trailing_stop = bool(st.session_state.get("use_trailing_stop", True))
+    max_holding_bars = int(st.session_state.get("max_holding_bars", 180))
     allow_shorts = bool(st.session_state.get("allow_shorts", True))
     paper_enabled = bool(st.session_state.get("paper_enabled", True))
     persist_state = bool(st.session_state.get("persist_state", cfg.persist_paper_state))
     auto_execute = bool(st.session_state.get("auto_execute", True))
     mark_only = bool(st.session_state.get("mark_only", True))
     use_cached = bool(st.session_state.get("use_cached", True))
+    alerts_enabled = bool(st.session_state.get("alerts_enabled", False))
+    alert_min_level = str(st.session_state.get("alert_min_level", "BUY")).upper()
+    discord_webhook_url = str(st.session_state.get("discord_webhook_url", "")).strip()
+    telegram_bot_token = str(st.session_state.get("telegram_bot_token", "")).strip()
+    telegram_chat_id = str(st.session_state.get("telegram_chat_id", "")).strip()
+
+    alert_manager = AlertManager(
+        AlertConfig(
+            enabled=alerts_enabled,
+            min_level=alert_min_level,
+            discord_webhook_url=discord_webhook_url,
+            telegram_bot_token=telegram_bot_token,
+            telegram_chat_id=telegram_chat_id,
+        ),
+        cfg.alerts_log_path,
+    )
 
     reset_cols = st.sidebar.columns(2)
     if reset_cols[0].button("Reset paper account", use_container_width=True):
@@ -314,6 +368,11 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
         slippage_rate=slippage_rate,
         allow_shorts=allow_shorts,
     )
+    bt_cfg.strategy.stop_atr_multiple = stop_atr_multiple
+    bt_cfg.strategy.take_profit_atr_multiple = take_profit_atr_multiple
+    bt_cfg.strategy.trailing_atr_multiple = trailing_atr_multiple
+    bt_cfg.strategy.use_trailing_stop = use_trailing_stop
+    bt_cfg.strategy.max_holding_bars = max_holding_bars
     result = run_backtest(df, bt_cfg)
     signal_snapshot = build_latest_signal_snapshot(result.enriched_frame, bt_cfg.strategy)
 
@@ -466,10 +525,28 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
             manual_cols[1].markdown(f"<div class='subtle'>Live marking: <strong>{'On' if mark_only else 'Off'}</strong></div>", unsafe_allow_html=True)
             manual_step = manual_cols[2].button("Run one paper update now", use_container_width=True)
 
+            prior_trade_count = len(account.trades)
+            prior_position_side = account.position.side if account.position is not None else "FLAT"
+            latest_row = result.enriched_frame.iloc[-1] if not result.enriched_frame.empty else None
+
+            if latest_row is not None and alerts_enabled and str(signal_snapshot.get("signal", "HOLD")).upper() in {"BUY", "SELL"}:
+                level, title, body, event_id = build_signal_alert(signal_snapshot, product_id)
+                alert_manager.emit(level=level, event_type="signal", title=title, body=body, event_id=event_id, metadata={"product_id": product_id})
+
             if live_price is not None and mark_only:
                 process_live_price(account, live_price, pd.Timestamp.utcnow().isoformat(), bt_cfg)
-            if live_price is not None and (auto_execute or manual_step) and not result.enriched_frame.empty:
-                process_paper_signal(account, result.enriched_frame.iloc[-1], live_price, bt_cfg)
+            if live_price is not None and (auto_execute or manual_step) and latest_row is not None:
+                process_paper_signal(account, latest_row, live_price, bt_cfg)
+
+            if len(account.trades) > prior_trade_count:
+                trade = account.trades[-1]
+                level, title, body, event_id = build_exit_alert(trade, product_id)
+                alert_manager.emit(level=level, event_type="exit", title=title, body=body, event_id=event_id, metadata=trade)
+
+            new_position_side = account.position.side if account.position is not None else "FLAT"
+            if prior_position_side != new_position_side and account.position is not None:
+                level, title, body, event_id = build_entry_alert(account.position, product_id)
+                alert_manager.emit(level=level, event_type="entry", title=title, body=body, event_id=event_id, metadata={"product_id": product_id})
 
             if persist_state:
                 store.save_account(account)
@@ -525,6 +602,14 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
                 st.dataframe(trades.tail(200), use_container_width=True, height=330)
             else:
                 st.info("No paper trades yet. The trader will open a position when a new BUY or SELL signal appears.")
+
+            st.markdown("### Alert feed")
+            alerts_df = alert_manager.recent_alerts(100)
+            if alerts_df.empty:
+                st.caption("No alerts logged yet.")
+            else:
+                display_cols = [col for col in ["timestamp", "level", "event_type", "title", "body"] if col in alerts_df.columns]
+                st.dataframe(alerts_df[display_cols], use_container_width=True, height=250)
 
     with research_tab:
         left, right = st.columns(2, gap="large")
