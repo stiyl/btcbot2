@@ -33,7 +33,7 @@ This package turns the original monolithic scanner into a cleaner research proje
 ```bash
 pip install -r requirements.txt
 python run_backtest.py --download BTC-USD --days 180 --granularity 3600 --export-trades trades.csv --export-equity equity.csv
-streamlit run run_dashboard.py
+python -m streamlit run run_dashboard.py
 ```
 
 ## Use your own CSV
