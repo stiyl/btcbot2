@@ -219,3 +219,28 @@ def process_paper_signal(
             _open_position(account, cfg, timestamp_str, 'SHORT', live_price, atr_value, score)
 
     return account
+
+
+def process_live_price(account: PaperAccount, live_price: float, timestamp: str, cfg: BacktestConfig) -> PaperAccount:
+    if live_price <= 0 or account.position is None:
+        return account
+
+    position = account.position
+    account.last_update_time = timestamp
+    if position.side == 'LONG':
+        if cfg.strategy.use_trailing_stop and live_price > position.entry_price:
+            position.trail_stop = max(position.trail_stop, live_price - cfg.strategy.trailing_atr_multiple * max((position.entry_price - position.stop_price) / max(cfg.strategy.stop_atr_multiple, 1e-9), 1e-9))
+        stop_level = max(position.stop_price, position.trail_stop)
+        if live_price <= stop_level:
+            _close_position(account, cfg, timestamp, stop_level * (1 - cfg.slippage_rate), 'live_stop')
+        elif live_price >= position.take_profit:
+            _close_position(account, cfg, timestamp, position.take_profit * (1 - cfg.slippage_rate), 'live_tp')
+    else:
+        if cfg.strategy.use_trailing_stop and live_price < position.entry_price:
+            position.trail_stop = min(position.trail_stop, live_price + cfg.strategy.trailing_atr_multiple * max((position.stop_price - position.entry_price) / max(cfg.strategy.stop_atr_multiple, 1e-9), 1e-9))
+        stop_level = min(position.stop_price, position.trail_stop)
+        if live_price >= stop_level:
+            _close_position(account, cfg, timestamp, stop_level * (1 + cfg.slippage_rate), 'live_stop')
+        elif live_price <= position.take_profit:
+            _close_position(account, cfg, timestamp, position.take_profit * (1 + cfg.slippage_rate), 'live_tp')
+    return account
