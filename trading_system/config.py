@@ -19,6 +19,7 @@ class StrategyConfig:
     min_adx_proxy: float = 0.0040
     long_score_threshold: float = 3.5
     short_score_threshold: float = -3.5
+    watch_score_threshold: float = 2.8
     exit_score_threshold: float = 0.0
     stop_atr_multiple: float = 1.8
     take_profit_atr_multiple: float = 4.8
@@ -44,3 +45,6 @@ class DashboardConfig:
     title: str = 'Crypto Trading Research Dashboard'
     default_symbols: List[str] = field(default_factory=lambda: ['BTC-USD'])
     sample_data_path: Path = Path('examples/sample_btcusd_1h.csv')
+    default_days: int = 180
+    default_granularity: int = 3600
+    refresh_seconds: int = 30
