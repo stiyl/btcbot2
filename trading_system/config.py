@@ -52,3 +52,4 @@ class DashboardConfig:
     state_path: Path = Path('data_cache/dashboard_paper_state.json')
     history_path: Path = Path('data_cache/dashboard_equity.csv')
     trades_path: Path = Path('data_cache/dashboard_trades.csv')
+    ui_settings_path: Path = Path('data_cache/dashboard_ui_settings.json')

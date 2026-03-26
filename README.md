@@ -40,7 +40,7 @@ This refactor turns the project into a cleaner research and monitoring app with 
 
 ```bash
 pip install -r requirements.txt
-python -m streamlit run run app.py
+python - m streamlit run app.py
 ```
 
 ## Run a backtest

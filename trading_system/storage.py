@@ -14,6 +14,7 @@ DEFAULT_STATE_DIR = Path("data_cache")
 DEFAULT_DASHBOARD_STATE_PATH = DEFAULT_STATE_DIR / "dashboard_paper_state.json"
 DEFAULT_DASHBOARD_HISTORY_PATH = DEFAULT_STATE_DIR / "dashboard_equity.csv"
 DEFAULT_DASHBOARD_TRADES_PATH = DEFAULT_STATE_DIR / "dashboard_trades.csv"
+DEFAULT_UI_SETTINGS_PATH = DEFAULT_STATE_DIR / "dashboard_ui_settings.json"
 
 
 def paper_account_to_dict(account: PaperAccount) -> dict[str, Any]:
@@ -45,6 +46,32 @@ def paper_account_from_dict(payload: dict[str, Any]) -> PaperAccount:
     )
 
 
+<<<<<<< HEAD
+=======
+
+
+class UISettingsStore:
+    """JSON persistence for Streamlit dashboard control values."""
+
+    def __init__(self, settings_path: str | Path = DEFAULT_UI_SETTINGS_PATH) -> None:
+        self.settings_path = Path(settings_path)
+
+    def load(self) -> dict[str, Any]:
+        if not self.settings_path.exists():
+            return {}
+        payload = json.loads(self.settings_path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else {}
+
+    def save(self, settings: dict[str, Any]) -> None:
+        self.settings_path.parent.mkdir(parents=True, exist_ok=True)
+        self.settings_path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+
+    def reset(self) -> None:
+        if self.settings_path.exists():
+            self.settings_path.unlink()
+
+
+>>>>>>> 25cc864 (Persist Streamlit UI settings across refresh)
 class PaperStateStore:
     """Simple JSON + CSV persistence for dashboard and live paper trading."""
 

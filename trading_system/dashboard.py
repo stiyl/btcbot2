@@ -16,7 +16,7 @@ from .downloader import (
     fetch_coinbase_live_snapshot,
 )
 from .paper import create_paper_account, paper_account_snapshot, process_live_price, process_paper_signal
-from .storage import PaperStateStore
+from .storage import PaperStateStore, UISettingsStore
 from .strategy import build_latest_signal_snapshot
 
 
@@ -160,21 +160,130 @@ def _performance_delta(history: pd.DataFrame) -> float | None:
         return None
 
 
+<<<<<<< HEAD
+=======
+
+
+def _load_ui_defaults(cfg: DashboardConfig) -> dict[str, object]:
+    return {
+        "product_id": cfg.default_symbols[0],
+        "granularity": int(cfg.default_granularity),
+        "days": int(cfg.default_days),
+        "refresh_seconds": int(cfg.refresh_seconds),
+        "use_cached": True,
+        "starting_cash": 10000.0,
+        "risk_per_trade": 0.01,
+        "fee_rate": 0.0006,
+        "slippage_rate": 0.0008,
+        "allow_shorts": True,
+        "paper_enabled": True,
+        "persist_state": bool(cfg.persist_paper_state),
+        "auto_execute": True,
+        "mark_only": True,
+    }
+
+
+def _initialize_ui_settings(cfg: DashboardConfig) -> UISettingsStore:
+    store = UISettingsStore(cfg.ui_settings_path)
+    defaults = _load_ui_defaults(cfg)
+    saved = store.load()
+    for key, value in defaults.items():
+        st.session_state.setdefault(key, saved.get(key, value))
+    return store
+
+
+def _current_ui_settings() -> dict[str, object]:
+    keys = [
+        "product_id",
+        "granularity",
+        "days",
+        "refresh_seconds",
+        "use_cached",
+        "starting_cash",
+        "risk_per_trade",
+        "fee_rate",
+        "slippage_rate",
+        "allow_shorts",
+        "paper_enabled",
+        "persist_state",
+        "auto_execute",
+        "mark_only",
+    ]
+    return {key: st.session_state.get(key) for key in keys}
+
+
+>>>>>>> 25cc864 (Persist Streamlit UI settings across refresh)
 def render_dashboard(default_csv: str | Path | None = None, config: DashboardConfig | None = None) -> None:
     cfg = config or DashboardConfig()
     st.set_page_config(page_title=cfg.title, layout="wide")
     _inject_styles()
 
+    ui_store = _initialize_ui_settings(cfg)
+    store = PaperStateStore(cfg.state_path, cfg.history_path, cfg.trades_path)
+
     st.sidebar.markdown("## Control Center")
-    product_id = st.sidebar.text_input("Product", value=cfg.default_symbols[0]).strip().upper() or cfg.default_symbols[0]
-    granularity = st.sidebar.selectbox(
-        "Granularity",
-        options=sorted(VALID_GRANULARITIES),
-        index=sorted(VALID_GRANULARITIES).index(cfg.default_granularity) if cfg.default_granularity in VALID_GRANULARITIES else 3,
-        help="Coinbase candle size in seconds.",
-    )
-    days = st.sidebar.slider("Days of history", min_value=7, max_value=730, value=cfg.default_days, step=1)
-    refresh_seconds = st.sidebar.slider("Auto-refresh live data (seconds)", min_value=0, max_value=120, value=cfg.refresh_seconds, step=5)
+    with st.sidebar.form("dashboard_settings_form"):
+        st.text_input("Product", key="product_id")
+        st.selectbox(
+            "Granularity",
+            options=sorted(VALID_GRANULARITIES),
+            key="granularity",
+            help="Coinbase candle size in seconds.",
+        )
+        st.slider("Days of history", min_value=7, max_value=730, step=1, key="days")
+        st.slider("Auto-refresh live data (seconds)", min_value=0, max_value=120, step=5, key="refresh_seconds")
+
+        st.markdown("### Risk")
+        st.number_input("Starting cash", min_value=1000.0, step=1000.0, key="starting_cash")
+        st.slider("Risk per trade", min_value=0.001, max_value=0.03, step=0.001, key="risk_per_trade")
+        st.number_input("Fee rate", min_value=0.0, step=0.0001, format="%.4f", key="fee_rate")
+        st.number_input("Slippage rate", min_value=0.0, step=0.0001, format="%.4f", key="slippage_rate")
+        st.checkbox("Allow shorts", key="allow_shorts")
+
+        st.markdown("### Paper trader")
+        st.checkbox("Enable live paper trader", key="paper_enabled")
+        st.checkbox("Persist dashboard paper state", key="persist_state")
+        st.checkbox("Auto execute latest signal", key="auto_execute")
+        st.checkbox("Mark open trades with live price", key="mark_only")
+        st.checkbox("Use latest cached Coinbase history", key="use_cached")
+
+        apply_settings = st.form_submit_button("Apply & save settings", use_container_width=True)
+
+    if apply_settings:
+        st.session_state["product_id"] = str(st.session_state.get("product_id", cfg.default_symbols[0])).strip().upper() or cfg.default_symbols[0]
+        ui_store.save(_current_ui_settings())
+        st.sidebar.success("Settings saved. They will survive a page refresh.")
+
+    product_id = str(st.session_state.get("product_id", cfg.default_symbols[0])).strip().upper() or cfg.default_symbols[0]
+    st.session_state["product_id"] = product_id
+    granularity = int(st.session_state.get("granularity", cfg.default_granularity))
+    days = int(st.session_state.get("days", cfg.default_days))
+    refresh_seconds = int(st.session_state.get("refresh_seconds", cfg.refresh_seconds))
+    starting_cash = float(st.session_state.get("starting_cash", 10000.0))
+    risk_per_trade = float(st.session_state.get("risk_per_trade", 0.01))
+    fee_rate = float(st.session_state.get("fee_rate", 0.0006))
+    slippage_rate = float(st.session_state.get("slippage_rate", 0.0008))
+    allow_shorts = bool(st.session_state.get("allow_shorts", True))
+    paper_enabled = bool(st.session_state.get("paper_enabled", True))
+    persist_state = bool(st.session_state.get("persist_state", cfg.persist_paper_state))
+    auto_execute = bool(st.session_state.get("auto_execute", True))
+    mark_only = bool(st.session_state.get("mark_only", True))
+    use_cached = bool(st.session_state.get("use_cached", True))
+
+    reset_cols = st.sidebar.columns(2)
+    if reset_cols[0].button("Reset paper account", use_container_width=True):
+        store.reset()
+        st.session_state.pop("paper_account", None)
+        st.session_state.pop("paper_history", None)
+        st.session_state.pop("paper_trades", None)
+        st.sidebar.success("Paper account state reset.")
+    if reset_cols[1].button("Reset UI settings", use_container_width=True):
+        ui_store.reset()
+        for key, value in _load_ui_defaults(cfg).items():
+            st.session_state[key] = value
+        st.session_state.pop("downloaded_csv", None)
+        st.rerun()
+
     _enable_autorefresh(refresh_seconds)
 
     st.sidebar.markdown("---")
@@ -183,7 +292,6 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
     source = uploaded if uploaded is not None else (str(default_csv) if default_csv else None)
 
     if uploaded is None:
-        use_cached = st.sidebar.checkbox("Use latest cached Coinbase history", value=True)
         if st.sidebar.button("Refresh Coinbase history now", use_container_width=True):
             _cached_download.clear()
             st.session_state.pop("downloaded_csv", None)
@@ -204,6 +312,7 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
         st.error(f"Could not load data source: {exc}")
         return
 
+<<<<<<< HEAD
     st.sidebar.markdown("---")
     st.sidebar.markdown("### Risk")
     starting_cash = st.sidebar.number_input("Starting cash", min_value=1000.0, value=10000.0, step=1000.0)
@@ -225,6 +334,8 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
         st.session_state.pop("paper_trades", None)
         st.success("Paper account state reset.")
 
+=======
+>>>>>>> 25cc864 (Persist Streamlit UI settings across refresh)
     bt_cfg = BacktestConfig(
         starting_cash=starting_cash,
         risk_per_trade=risk_per_trade,
@@ -380,8 +491,13 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
                     store.reset()
 
             manual_cols = st.columns([1, 1, 3])
+<<<<<<< HEAD
             auto_execute = manual_cols[0].checkbox("Auto execute latest signal", value=True)
             mark_only = manual_cols[1].checkbox("Mark open trades with live price", value=True)
+=======
+            manual_cols[0].markdown(f"<div class='subtle'>Auto execute: <strong>{'On' if auto_execute else 'Off'}</strong></div>", unsafe_allow_html=True)
+            manual_cols[1].markdown(f"<div class='subtle'>Live marking: <strong>{'On' if mark_only else 'Off'}</strong></div>", unsafe_allow_html=True)
+>>>>>>> 25cc864 (Persist Streamlit UI settings across refresh)
             manual_step = manual_cols[2].button("Run one paper update now", use_container_width=True)
 
             if live_price is not None and mark_only:

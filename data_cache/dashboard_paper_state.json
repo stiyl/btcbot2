@@ -1,0 +1,9 @@
+{
+  "starting_cash": 10000.0,
+  "cash": 10000.0,
+  "realized_pnl": 0.0,
+  "trades": [],
+  "last_signal_bar": "2026-03-26T05:00:00+00:00",
+  "last_update_time": "2026-03-26T05:39:38.666089+00:00",
+  "position": null
+}
