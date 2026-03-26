@@ -11,7 +11,7 @@ This package turns the original monolithic scanner into a cleaner research proje
   - `trading_system/strategy.py`: improved signal model and alert snapshots
   - `trading_system/backtest.py`: fast backtest engine
   - `trading_system/downloader.py`: Coinbase history + live price snapshot helpers
-  - `trading_system/dashboard.py`: web UI with auto-download, live prices, and signal alerts
+  - `trading_system/dashboard.py`: web UI with auto-download, live prices, signal alerts, and a session-based live paper trader
 - **Strategy edge improvements**
   - multi-factor scoring instead of one-off triggers
   - trend alignment with fast / slow / long EMAs
@@ -23,6 +23,7 @@ This package turns the original monolithic scanner into a cleaner research proje
   - auto-downloads BTC-USD history by default
   - live Coinbase price, spread, and 24h range cards
   - alert banner for BUY, SELL, WATCH, or HOLD based on the latest signal bar
+  - session-based live paper trader with simulated entries, exits, PnL, and a trade blotter
   - optional auto-refresh for quasi real-time monitoring
 
 ## Quick start
@@ -46,4 +47,4 @@ Common aliases like `time`, `datetime`, and `date` are normalized automatically.
 
 ## Notes
 
-This is still a **research / paper-trading dashboard**. The live section only reads public Coinbase market data. It does **not** place trades or send exchange orders.
+This is still a **research / paper-trading dashboard**. The live section only reads public Coinbase market data and places simulated paper trades inside the Streamlit session. It does **not** place real exchange orders or use real money.

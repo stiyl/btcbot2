@@ -16,6 +16,7 @@ from .downloader import (
     fetch_coinbase_live_snapshot,
 )
 from .strategy import build_latest_signal_snapshot
+from .paper import create_paper_account, paper_account_snapshot, process_paper_signal
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -81,7 +82,7 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
     cfg = config or DashboardConfig()
     st.set_page_config(page_title=cfg.title, layout='wide')
     st.title(cfg.title)
-    st.caption('Auto-download Coinbase candles, monitor live prices, and surface trade alerts from the latest model bar.')
+    st.caption('Auto-download Coinbase candles, monitor live prices, surface trade alerts, and run session-based live paper trades from the latest closed signal bar.')
 
     st.sidebar.header('Market')
     product_id = st.sidebar.text_input('Product', value=cfg.default_symbols[0]).strip().upper() or cfg.default_symbols[0]
@@ -126,6 +127,12 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
     slippage_rate = st.sidebar.number_input('Slippage rate', min_value=0.0, value=0.0008, step=0.0001, format='%.4f')
     allow_shorts = st.sidebar.checkbox('Allow shorts', value=True)
 
+    st.sidebar.subheader('Live paper trading')
+    paper_enabled = st.sidebar.checkbox('Enable live paper trader', value=True)
+    if st.sidebar.button('Reset paper account'):
+        st.session_state.pop('paper_account', None)
+        st.session_state.pop('paper_history', None)
+
     bt_cfg = BacktestConfig(
         starting_cash=starting_cash,
         risk_per_trade=risk_per_trade,
@@ -139,6 +146,7 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
     st.write(f"Using data source: `{source}`")
 
     st.subheader('Live market snapshot')
+    live = {}
     try:
         live = _cached_live_snapshot(product_id)
         live_cols = st.columns(5)
@@ -156,6 +164,46 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
 
     st.subheader('Signal alerts')
     _render_signal_alert(signal_snapshot)
+
+    if paper_enabled:
+        if 'paper_account' not in st.session_state or st.session_state['paper_account'].starting_cash != float(starting_cash):
+            st.session_state['paper_account'] = create_paper_account(float(starting_cash))
+        live_price_for_paper = None
+        try:
+            live_price_for_paper = float(live.get('price')) if live.get('price') is not None else None
+        except Exception:
+            live_price_for_paper = None
+        if live_price_for_paper and not result.enriched_frame.empty:
+            paper_account = st.session_state['paper_account']
+            process_paper_signal(paper_account, result.enriched_frame.iloc[-1], live_price_for_paper, bt_cfg)
+            paper_state = paper_account_snapshot(paper_account, live_price_for_paper)
+
+            st.subheader('Live paper trader')
+            p1, p2, p3, p4, p5 = st.columns(5)
+            p1.metric('Paper equity', _metric_value(paper_state.get('equity'), prefix='$'))
+            p2.metric('Paper cash', _metric_value(paper_state.get('cash'), prefix='$'))
+            p3.metric('Realized PnL', _metric_value(paper_state.get('realized_pnl'), prefix='$'))
+            p4.metric('Unrealized PnL', _metric_value(paper_state.get('unrealized_pnl'), prefix='$'))
+            p5.metric('Position', str(paper_state.get('position_side', 'FLAT')))
+
+            detail_left, detail_mid, detail_right = st.columns(3)
+            detail_left.metric('Qty', _metric_value(paper_state.get('position_qty'), digits=6))
+            detail_mid.metric('Entry', _metric_value(paper_state.get('entry_price'), prefix='$'))
+            detail_right.metric('Trades', str(paper_state.get('trade_count', 0)))
+
+            if paper_account.position is not None:
+                risk_cols = st.columns(3)
+                risk_cols[0].metric('Stop', _metric_value(paper_state.get('stop_price'), prefix='$'))
+                risk_cols[1].metric('Take profit', _metric_value(paper_state.get('take_profit'), prefix='$'))
+                risk_cols[2].metric('Trail', _metric_value(paper_state.get('trail_stop'), prefix='$'))
+
+            paper_trades = pd.DataFrame(paper_account.trades)
+            if not paper_trades.empty:
+                st.dataframe(paper_trades.tail(100), use_container_width=True)
+            else:
+                st.info('No live paper trades yet. The app will open a simulated trade when a new closed candle prints a BUY or SELL signal.')
+
+            st.caption('Live paper trader is session-based: it reacts once per newly closed signal bar using the latest Coinbase price on refresh. It does not send exchange orders.')
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric('Ending equity', f"${result.summary['ending_equity']:,.2f}")
