@@ -36,8 +36,8 @@ def paper_account_from_dict(payload: dict[str, Any]) -> PaperAccount:
     position_payload = payload.get("position")
     position = PaperPosition(**position_payload) if isinstance(position_payload, dict) else None
     return PaperAccount(
-        starting_cash=float(payload.get("starting_cash", 10000.0)),
-        cash=float(payload.get("cash", payload.get("starting_cash", 10000.0))),
+        starting_cash=float(payload.get("starting_cash", 2000.0)),
+        cash=float(payload.get("cash", payload.get("starting_cash", 2000.0))),
         realized_pnl=float(payload.get("realized_pnl", 0.0)),
         trades=list(payload.get("trades", [])),
         position=position,

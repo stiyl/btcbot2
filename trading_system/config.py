@@ -32,9 +32,9 @@ class StrategyConfig:
 
 @dataclass(slots=True)
 class BacktestConfig:
-    starting_cash: float = 10_000.0
+    starting_cash: float = 2_000.0
     risk_per_trade: float = 0.01
-    fee_rate: float = 0.0006
+    fee_rate: float = 0.0060
     slippage_rate: float = 0.0008
     max_open_positions: int = 1
     allow_shorts: bool = True

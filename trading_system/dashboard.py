@@ -170,9 +170,9 @@ def _load_ui_defaults(cfg: DashboardConfig) -> dict[str, object]:
         "days": int(cfg.default_days),
         "refresh_seconds": int(cfg.refresh_seconds),
         "use_cached": True,
-        "starting_cash": 10000.0,
+        "starting_cash": 2000.0,
         "risk_per_trade": 0.01,
-        "fee_rate": 0.0006,
+        "fee_rate": 0.0060,
         "slippage_rate": 0.0008,
         "stop_atr_multiple": 1.8,
         "take_profit_atr_multiple": 4.8,
@@ -287,9 +287,9 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
     granularity = int(st.session_state.get("granularity", cfg.default_granularity))
     days = int(st.session_state.get("days", cfg.default_days))
     refresh_seconds = int(st.session_state.get("refresh_seconds", cfg.refresh_seconds))
-    starting_cash = float(st.session_state.get("starting_cash", 10000.0))
+    starting_cash = float(st.session_state.get("starting_cash", 2000.0))
     risk_per_trade = float(st.session_state.get("risk_per_trade", 0.01))
-    fee_rate = float(st.session_state.get("fee_rate", 0.0006))
+    fee_rate = float(st.session_state.get("fee_rate", 0.0060))
     slippage_rate = float(st.session_state.get("slippage_rate", 0.0008))
     stop_atr_multiple = float(st.session_state.get("stop_atr_multiple", 1.8))
     take_profit_atr_multiple = float(st.session_state.get("take_profit_atr_multiple", 4.8))

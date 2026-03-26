@@ -121,9 +121,9 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
         return
 
     st.sidebar.subheader('Risk settings')
-    starting_cash = st.sidebar.number_input('Starting cash', min_value=1000.0, value=10000.0, step=1000.0)
+    starting_cash = st.sidebar.number_input('Starting cash', min_value=1000.0, value=2000.0, step=1000.0)
     risk_per_trade = st.sidebar.slider('Risk per trade', min_value=0.001, max_value=0.03, value=0.01, step=0.001)
-    fee_rate = st.sidebar.number_input('Fee rate', min_value=0.0, value=0.0006, step=0.0001, format='%.4f')
+    fee_rate = st.sidebar.number_input('Fee rate', min_value=0.0, value=0.0060, step=0.0001, format='%.4f')
     slippage_rate = st.sidebar.number_input('Slippage rate', min_value=0.0, value=0.0008, step=0.0001, format='%.4f')
     allow_shorts = st.sidebar.checkbox('Allow shorts', value=True)
 
