@@ -247,12 +247,10 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
         apply_settings = st.form_submit_button("Apply & save settings", use_container_width=True)
 
     if apply_settings:
-        st.session_state["product_id"] = str(st.session_state.get("product_id", cfg.default_symbols[0])).strip().upper() or cfg.default_symbols[0]
         ui_store.save(_current_ui_settings())
         st.sidebar.success("Settings saved. They will survive a page refresh.")
 
     product_id = str(st.session_state.get("product_id", cfg.default_symbols[0])).strip().upper() or cfg.default_symbols[0]
-    st.session_state["product_id"] = product_id
     granularity = int(st.session_state.get("granularity", cfg.default_granularity))
     days = int(st.session_state.get("days", cfg.default_days))
     refresh_seconds = int(st.session_state.get("refresh_seconds", cfg.refresh_seconds))
@@ -276,8 +274,8 @@ def render_dashboard(default_csv: str | Path | None = None, config: DashboardCon
         st.sidebar.success("Paper account state reset.")
     if reset_cols[1].button("Reset UI settings", use_container_width=True):
         ui_store.reset()
-        for key, value in _load_ui_defaults(cfg).items():
-            st.session_state[key] = value
+        for key in _load_ui_defaults(cfg).keys():
+            st.session_state.pop(key, None)
         st.session_state.pop("downloaded_csv", None)
         st.rerun()
 
