@@ -46,8 +46,6 @@ def paper_account_from_dict(payload: dict[str, Any]) -> PaperAccount:
     )
 
 
-<<<<<<< HEAD
-=======
 
 
 class UISettingsStore:
@@ -71,7 +69,6 @@ class UISettingsStore:
             self.settings_path.unlink()
 
 
->>>>>>> 25cc864 (Persist Streamlit UI settings across refresh)
 class PaperStateStore:
     """Simple JSON + CSV persistence for dashboard and live paper trading."""
 
